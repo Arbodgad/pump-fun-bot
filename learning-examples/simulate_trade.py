@@ -122,7 +122,16 @@ async def get_price(conn: AsyncClient, curve_address: Pubkey) -> float:
 async def simulate_trade(curve_address: str, token_name: str) -> None:
     async with AsyncClient(RPC_ENDPOINT) as conn:
         curve_pubkey = Pubkey.from_string(curve_address)
-        entry_price = await get_price(conn, curve_pubkey)
+        while True:
+            try:
+                entry_price = await get_price(conn, curve_pubkey)
+                break
+            except ValueError as exc:
+                if str(exc) == ERR_NO_CURVE_DATA:
+                    print(f"{token_name}: waiting for curve data...")
+                    await asyncio.sleep(1)
+                else:
+                    raise
         tp_price = entry_price * (1 + TAKE_PROFIT_PCT)
         sl_price = entry_price * (1 - STOP_LOSS_PCT)
         print(
@@ -131,7 +140,16 @@ async def simulate_trade(curve_address: str, token_name: str) -> None:
         )
         while True:
             await asyncio.sleep(1)
-            price = await get_price(conn, curve_pubkey)
+            while True:
+                try:
+                    price = await get_price(conn, curve_pubkey)
+                    break
+                except ValueError as exc:
+                    if str(exc) == ERR_NO_CURVE_DATA:
+                        print(f"{token_name}: waiting for curve data...")
+                        await asyncio.sleep(1)
+                    else:
+                        raise
             if price >= tp_price:
                 print(f"{token_name}: take profit hit at {price:.10f} SOL")
                 return
